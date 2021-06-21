@@ -1,0 +1,124 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+
+Resources:
+  EtlOutputBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  EtlScriptBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Join ['-', ['devopskpi', !Ref AWS::AccountId, 'etlscript']]
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  DevOpsKpiTriggerGlueRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: "Role to provide access for Lambda function to trigger a Glue ETL job"
+      RoleName: DevOpsKpiTriggerGlueRole
+      AssumeRolePolicyDocument: {
+        "Version": "2012-10-17",
+        "Statement": [ {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "lambda.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          },
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Service": "glue.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+          }, ]
+      }
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+      Policies: 
+        - PolicyName: DevOpsKpiEtlS3Policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                - s3:GetObject
+                - s3:ListBucket
+                Resource:
+                  - !ImportValue sam-getJIRAData:JIRADataBucketArn
+                  - !Join ['', [!ImportValue sam-getJIRAData:JIRADataBucketArn, '/*']]
+                  - !GetAtt EtlScriptBucket.Arn
+                  - !Join ['', [!GetAtt EtlScriptBucket.Arn, '/*']]
+                Effect: Allow
+              - Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:ListBucket
+                Resource:
+                  - !GetAtt EtlOutputBucket.Arn
+                  - !Join ['', [!GetAtt EtlOutputBucket.Arn, '/*']]
+                Effect: Allow
+
+  GlueClassifier:
+    Type: AWS::Glue::Classifier
+    Properties:
+      JsonClassifier:
+        JsonPath: "$[*]"
+        Name: "jsonarray"
+
+  GlueDatabase:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: "devopskpi"
+
+  GlueJiraCrawler:
+    Type: AWS::Glue::Crawler
+    Properties:
+      Classifiers:
+        - !Ref GlueClassifier
+      DatabaseName: !Ref GlueDatabase
+      Description: "String"
+      Name: "DevOpsJiraCrawler"
+      Role: !Ref DevOpsKpiTriggerGlueRole
+      TablePrefix: "kpi_"
+      Targets:
+        S3Targets:
+          - Path: !Join ['', ['s3://', !ImportValue sam-getJIRAData:JIRADataBucket, '/JIRAdata.json']]
+
+  GlueJob:
+    Type: AWS::Glue::Job
+    Properties:
+      Command:
+        Name: "glueetl"
+        PythonVersion: "3"
+        ScriptLocation: !Join ['', ['s3://', !Ref EtlScriptBucket, '/jira-lttd.py']]
+      Description: "Calculates Change time for Delivery"
+      GlueVersion: "2.0"
+      Name: "kpi-job"
+      Role: !GetAtt DevOpsKpiTriggerGlueRole.Arn
+      DefaultArguments:
+        "--etl_output_bucket": !Ref EtlOutputBucket
+
+Outputs:
+  EtlOutputBucketArn:
+    Description: "S3 Arn of output bucket"
+    Value: !GetAtt EtlOutputBucket.Arn
+    Export:
+      Name: !Join [':', [!Ref 'AWS::StackName', 'EtlOutputBucketArn' ]]
