@@ -1,0 +1,1 @@
+aws cloudformation create-stack --stack-name DevOpsKpiEtl --template-body file://template.yml --capabilities CAPABILITY_NAMED_IAM

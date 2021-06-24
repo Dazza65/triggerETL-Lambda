@@ -16,11 +16,13 @@ This is part 2 of an overall solution to provide DevOps Key Performance Indicato
 1. <pre><code>./sh package.sh</code></pre>(Creates the triggerETL.zip file in the build folder)
 1. <pre><code>./sh upload.sh</code></pre> (Copies the zip file to the specified S3 bucket to store the lambda function)
 
-1. Create CloudFormation stack
+1. <pre><code>./sh create-stack.sh</code></pre> (Creates the CloudFormation stack for all of the required resources)
 
 1. <pre><code>./sh upload-etl.sh</code></pre> (Copies the ETL script used by the Glue job to the S3 etl-scripts bucket)
 
 1. <pre><code>./sh create-s3-notification.sh</code></pre> (Adds the PutObject notification event to the S3 input bucket that is created in part 1 of the solution to trigger this lambda)
+
+1. <pre><code>./sh start-crawler.sh</code></pre> (Runs the Glue crawler to create the table schema from the input data. The input job will need to be run once to provide the input data.)
 
 ## The following AWS resources are created
 

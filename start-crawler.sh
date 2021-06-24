@@ -1,0 +1,1 @@
+aws glue start-crawler --name DevOpsJiraCrawler
