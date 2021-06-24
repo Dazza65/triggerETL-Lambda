@@ -6,12 +6,16 @@ const { GlueClient, StartJobRunCommand } = require("@aws-sdk/client-glue");
 const s3Client = AWSXRay.captureAWSv3Client(new S3Client({region: process.env.AWS_REGION}));
 const glueClient = AWSXRay.captureAWSv3Client(new GlueClient({region: process.env.AWS_REGION}));
 
+const etl_job_map = [{dataFile: "JIRAdata.json", jobName: "kpi-job"}];
+
 const triggerETL = async (s3Params) => {
     try {
+        const jobName = etl_job_map.find(job => job.dataFile === s3Params.Key).jobName;
+
         const data = await s3Client.send(new GetObjectCommand(s3Params));
 
         if(data.ContentLength > 0) {
-            const resp = await glueClient.send(new StartJobRunCommand({JobName: 'jira-lttd'}));
+            const resp = await glueClient.send(new StartJobRunCommand({JobName: jobName}));
             return resp;
         }
     } catch (err) {
