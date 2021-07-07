@@ -133,6 +133,8 @@ Resources:
       Timeout: 10
       TracingConfig:
         Mode: "Active"
+      Layers:
+        - !Sub "arn:aws:lambda:${AWS::Region}:580247275435:layer:LambdaInsightsExtension:14"
 
   LambdaPermission:
     Type: AWS::Lambda::Permission
